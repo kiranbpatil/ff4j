@@ -5,6 +5,8 @@ import static org.ff4j.web.bean.WebConstants.FF4J_SESSIONATTRIBUTE_NAME;
 import static org.ff4j.web.bean.WebConstants.SERVLETPARAM_CSS;
 import static org.ff4j.web.bean.WebConstants.SERVLETPARAM_FF4JPROVIDER;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -49,7 +51,6 @@ import org.ff4j.web.thymeleaf.CustomMessageResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.thymeleaf.TemplateEngine;
-import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 /**
@@ -92,7 +93,7 @@ public class FF4jServlet extends HttpServlet {
      *             error during servlet initialization
      */
     public void init(ServletConfig servletConfig) throws ServletException {
-    	LOGGER.info("  __  __ _  _   _ ");
+        LOGGER.info("  __  __ _  _   _ ");
         LOGGER.info(" / _|/ _| || | (_)");
         LOGGER.info("| |_| |_| || |_| |");
         LOGGER.info("|  _|  _|__   _| |");
@@ -101,23 +102,23 @@ public class FF4jServlet extends HttpServlet {
         LOGGER.info(" ");
 
         if (ff4j == null) {
-        	initializeFF4J(servletConfig);
+            initializeFF4J(servletConfig);
         }
 
-    	initializeTemplateEngine();
+        initializeTemplateEngine();
 
-    	staticResourceController = new StaticResourceController(ff4j, templateEngine);
-    	operationsController = new OperationsController(ff4j, templateEngine);
+        staticResourceController = new StaticResourceController(ff4j, templateEngine);
+        operationsController = new OperationsController(ff4j, templateEngine);
 
-    	addController(new HomeController(ff4j, templateEngine));
-    	addController(new InfosController(ff4j, templateEngine));
+        addController(new HomeController(ff4j, templateEngine));
+        addController(new InfosController(ff4j, templateEngine));
         
-    	addController(new FeaturesController(ff4j, templateEngine));
-    	addController(new PropertiesController(ff4j, templateEngine));
-    	addController(new SettingsController(ff4j, templateEngine));
-    	addController(new NotFoundController(ff4j, templateEngine));
+        addController(new FeaturesController(ff4j, templateEngine));
+        addController(new PropertiesController(ff4j, templateEngine));
+        addController(new SettingsController(ff4j, templateEngine));
+        addController(new NotFoundController(ff4j, templateEngine));
         
-    	addController(new AuditController(ff4j, templateEngine));
+        addController(new AuditController(ff4j, templateEngine));
         addController(new FeatureUsageController(ff4j, templateEngine));
         addController(new TimeSeriesController(ff4j, templateEngine));
     }
@@ -129,53 +130,56 @@ public class FF4jServlet extends HttpServlet {
      *      current controller
      */
     private void addController(AbstractController ac) {
-    	mapOfControllers.put(ac.getSuccessView(), ac);
+        mapOfControllers.put(ac.getSuccessView(), ac);
     }
 
     /**
      * Initialize FF4J configuration.
      *
      * @param servletConfig
-     * 		current servlet configuration
+     *      current servlet configuration
      */
     private void initializeFF4J(ServletConfig servletConfig) {
-    	String className = servletConfig.getInitParameter(SERVLETPARAM_FF4JPROVIDER);
-	    try {
-	    	Class<?> c = Class.forName(className);
-	        Object o = c.newInstance();
-	        ff4jProvider = (FF4jProvider) o;
-	        LOGGER.info("ff4j context has been successfully initialized - {} feature(s)", ff4jProvider.getFF4j().getFeatures().size());
-	    } catch (ClassNotFoundException e) {
-	    	throw new IllegalArgumentException("Cannot load ff4jProvider as " + ff4jProvider, e);
-	    } catch (InstantiationException e) {
-	    	throw new IllegalArgumentException("Cannot instantiate  " + ff4jProvider + " as ff4jProvider", e);
-	    } catch (IllegalAccessException e) {
-	    	throw new IllegalArgumentException("No public constructor for  " + ff4jProvider + " as ff4jProvider", e);
-	    } catch (ClassCastException ce) {
-	    	throw new IllegalArgumentException("ff4jProvider expected instance of " + FF4jProvider.class, ce);
-	    }
+        String className = servletConfig.getInitParameter(SERVLETPARAM_FF4JPROVIDER);
+        try {
+            Class<?> c = Class.forName(className);
+            Method method = c.getMethod("getInstance");
+            Object o = method.invoke(null);
+            ff4jProvider = (FF4jProvider) o;
+            LOGGER.info("ff4j context has been successfully initialized - {} feature(s)", ff4jProvider.getFF4j().getFeatures().size());
+        } catch (ClassNotFoundException e) {
+            throw new IllegalArgumentException("Cannot load ff4jProvider as " + ff4jProvider, e);
+        } catch (NoSuchMethodException e) {
+            throw new IllegalArgumentException("No static method getInstance in " + ff4jProvider, e);
+        } catch (InvocationTargetException e) {
+            throw new IllegalArgumentException("Failed to invoke getInstance in " + ff4jProvider, e);
+        } catch (IllegalAccessException e) {
+            throw new IllegalArgumentException("No public constructor for  " + ff4jProvider + " as ff4jProvider", e);
+        } catch (ClassCastException ce) {
+            throw new IllegalArgumentException("ff4jProvider expected instance of " + FF4jProvider.class, ce);
+        }
 
-	    ff4j = ff4jProvider.getFF4j();
-	    servletConfig.getServletContext().setAttribute(FF4J_SESSIONATTRIBUTE_NAME, ff4j);
-	    LOGGER.debug("Servlet has been initialized and ff4j store in session with {} ", ff4j.getFeatures().size());
-	    String cssFile = servletConfig.getInitParameter(SERVLETPARAM_CSS);
-	    if (cssFile != null) {
-	    	LOGGER.debug("A custom CSS has been defined [" + cssFile + "]");
-	        servletConfig.getServletContext().setAttribute(CSS_SESSIONATTRIBUTE_NAME, cssFile);
-	    }
+        ff4j = ff4jProvider.getFF4j();
+        servletConfig.getServletContext().setAttribute(FF4J_SESSIONATTRIBUTE_NAME, ff4j);
+        LOGGER.debug("Servlet has been initialized and ff4j store in session with {} ", ff4j.getFeatures().size());
+        String cssFile = servletConfig.getInitParameter(SERVLETPARAM_CSS);
+        if (cssFile != null) {
+            LOGGER.debug("A custom CSS has been defined [" + cssFile + "]");
+            servletConfig.getServletContext().setAttribute(CSS_SESSIONATTRIBUTE_NAME, cssFile);
+        }
     }
 
     /**
      * Initialize Thymeleaf.
      */
     private void initializeTemplateEngine() {
-    	ClassLoaderTemplateResolver templateResolver = new ClassLoaderTemplateResolver();
-	    templateResolver.setTemplateMode(TemplateMode.HTML);
-	    templateResolver.setPrefix("views/view-");
-	    templateResolver.setSuffix(".html");
-	    templateResolver.setCacheTTLMs(3600000L);
+        ClassLoaderTemplateResolver templateResolver = new ClassLoaderTemplateResolver();
+        templateResolver.setTemplateMode("XHTML");
+        templateResolver.setPrefix("views/view-");
+        templateResolver.setSuffix(".html");
+        templateResolver.setCacheTTLMs(3600000L);
 
-	    templateEngine = new TemplateEngine();
+        templateEngine = new TemplateEngine();
         templateEngine.setTemplateResolver(templateResolver);
         templateEngine.addMessageResolver(new CustomMessageResolver());
         LOGGER.info("Thymeleaf has been initialized");
